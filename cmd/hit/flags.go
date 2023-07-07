@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const usageText = `
@@ -15,8 +16,9 @@ Usage:
 Options:`
 
 type flags struct {
-	url  string
-	n, c int
+	url, m string
+	n, c   int
+	t      time.Duration
 }
 
 // number is a natural number.
@@ -42,6 +44,27 @@ func (n *number) String() string {
 	return strconv.Itoa(int(*n))
 }
 
+// number is a natural number.
+type method string
+
+// toNumber is a convenience function for converting p to *number.
+func toMethod(p *string) *method {
+	return (*method)(p)
+}
+func (m *method) Set(s string) (err error) {
+	switch s {
+	case "GET", "POST", "PUT":
+		*m = method(s)
+	default:
+		err = errors.New("should be GET, POST or PUT")
+	}
+	return err
+}
+
+func (m *method) String() string {
+	return string(*m)
+}
+
 type parseFunc func(string) error
 
 func (f *flags) parse(s *flag.FlagSet, args []string) (err error) {
@@ -51,6 +74,8 @@ func (f *flags) parse(s *flag.FlagSet, args []string) (err error) {
 	}
 	s.Var(toNumber(&f.n), "n", "Number of requests to make")
 	s.Var(toNumber(&f.c), "c", "Concurrency level")
+	s.DurationVar(&f.t, "t", 5*time.Second, "Timout in seconds")
+	s.Var(toMethod(&f.m), "m", "Timout in seconds")
 	if err := s.Parse(args); err != nil {
 		return err
 	}
@@ -84,6 +109,9 @@ func (f *flags) validate(s *flag.FlagSet) error {
 	}
 	if f.c > f.n {
 		return fmt.Errorf("-c=%d: should be less than or equal to -n=%d", f.c, f.n)
+	}
+	if f.t <= 0 {
+		return fmt.Errorf("-t=%v: should be more or equal than 0", f.t)
 	}
 	return nil
 }
