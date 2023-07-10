@@ -30,22 +30,26 @@ func produce(ctx context.Context, n int, fn func() *http.Request) <-chan *http.R
 
 // Throttle slows down receiving from in by delay and
 // sends what it receives from in to out.
-func Throttle(in <-chan *http.Request, out chan<- *http.Request, delay time.Duration) {
+func Throttle(ctx context.Context, in <-chan *http.Request, out chan<- *http.Request, delay time.Duration) {
 	t := time.NewTicker(delay)
 	defer t.Stop()
 
-	for r := range in {
-		<-t.C
-		out <- r
+	for s := range in {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			out <- s
+		}
 	}
 }
 
 // throttle runs Throttle in a goroutine.
-func throttle(in <-chan *http.Request, delay time.Duration) <-chan *http.Request {
+func throttle(ctx context.Context, in <-chan *http.Request, delay time.Duration) <-chan *http.Request {
 	out := make(chan *http.Request)
 	go func() {
 		defer close(out)
-		Throttle(in, out, delay)
+		Throttle(ctx, in, out, delay)
 	}()
 	return out
 }
